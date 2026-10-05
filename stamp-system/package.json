@@ -1,0 +1,7 @@
+{
+  "name": "stamp-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "start": "node start.js" },
+  "engines": { "node": ">=18" }
+}

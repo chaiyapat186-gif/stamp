@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stamp card</title><link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"><style>#scan{position:fixed;inset:0;background:#000;z-index:9;display:flex;flex-direction:column;justify-content:center;padding:16px}#scan[hidden]{display:none}#scan video{max-height:75vh;object-fit:cover}</style></head><body>
+<div class="top"></div>
+<section class="card"><h1>Member Card</h1><p id="left"></p><div class="grid" id="grid"></div></section>
+<main>
+  <div id="msg" class="msg" hidden></div>
+  <div id="scan" hidden><p style="color:#fff;text-align:center">Point the camera at the QR code</p><video id="v" playsinline muted></video><button class="ghost" id="stop" style="margin-top:8px">Cancel</button></div>
+  <p id="rewards"></p>
+  <details><summary>Camera not working? Type the code</summary><div class="row" style="margin-top:8px"><input id="manual" placeholder="Code under the QR"><button id="go">Add</button></div></details>
+</main>
+<button class="fab" id="open">Scan QR code</button>
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+// Prototype identity: one random id per phone. In production use LINE Login (LIFF) userId instead.
+const cid = localStorage.cid || (localStorage.cid = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)));
+let stream = null;
+
+function draw(total) {                                   // FRONT END: turn a number into the stamp grid
+  const n = total % 10;
+  $('grid').innerHTML = Array.from({ length: 10 }, (_, i) => `<div class="stamp ${i < n ? 'on' : ''}">${i < n ? '☕' : i === 9 ? '★' : ''}</div>`).join('');
+  $('left').textContent = `${10 - n} stamp(s) till reward`;
+  $('rewards').textContent = total >= 10 ? `Free drinks earned so far: ${Math.floor(total / 10)}` : '';
+}
+const say = (t, ok) => { $('msg').hidden = false; $('msg').className = 'msg ' + (ok ? 'ok' : 'bad'); $('msg').textContent = t; };
+
+async function load() { draw((await (await fetch(API + '/api/card?customerId=' + cid)).json()).total); }
+
+async function redeem(code) {                            // FRONT END -> BACK END: send the scanned code
+  const r = await fetch(API + '/api/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: cid, code }) });
+  const d = await r.json();
+  if (!r.ok) return say(d.error, false);
+  say(`+${d.added} stamp${d.added > 1 ? 's' : ''} added!`, true); draw(d.total);
+}
+
+function stopScan() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; $('scan').hidden = true; }
+$('stop').onclick = stopScan;
+$('go').onclick = () => redeem($('manual').value.trim());
+$('open').onclick = async () => {
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); }
+  catch { return say('Camera unavailable. Use https (or localhost) and allow camera access.', false); }
+  const v = $('v'); v.srcObject = stream; await v.play(); $('scan').hidden = false;
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+  (function tick() {
+    if (!stream) return;
+    if (v.videoWidth) {
+      cv.width = v.videoWidth; cv.height = v.videoHeight; cx.drawImage(v, 0, 0);
+      const img = cx.getImageData(0, 0, cv.width, cv.height), r = jsQR(img.data, img.width, img.height);
+      if (r && r.data.startsWith('STAMP:')) { stopScan(); redeem(r.data.slice(6)); return; }
+    }
+    requestAnimationFrame(tick);
+  })();
+};
+load();
+</script></body></html>

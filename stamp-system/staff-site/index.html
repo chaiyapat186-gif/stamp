@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Staff - QR maker</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/staff/style.css"></head><body><main style="padding-top:32px">
+<h1>Staff QR maker</h1><div id="msg" class="msg" hidden></div>
+<form id="login" onsubmit="return false"><p>Staff log in to make stamp QR codes.</p>
+  <p><input id="u" placeholder="Username" autocomplete="username" style="width:100%"></p>
+  <p><input id="p" type="password" placeholder="Password" autocomplete="current-password" style="width:100%"></p>
+  <button id="loginBtn" style="width:100%">Log in</button></form>
+<div id="app" hidden>
+  <p>How many cups is this customer buying?</p>
+  <div class="row"><button class="ghost" id="minus" aria-label="Fewer">-</button><input id="cups" type="number" min="1" max="10" value="1" style="text-align:center"><button class="ghost" id="plus" aria-label="More">+</button></div>
+  <p><button id="gen" style="width:100%">Make QR code</button></p>
+  <div id="result" class="qr" hidden></div><p id="code" style="text-align:center;word-break:break-all"></p>
+  <p><button class="ghost" id="out">Log out</button></p>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="/staff/config.js"></script><script src="/staff/api.js"></script>
+<script>
+const view = () => { $('login').hidden = !!tok; $('app').hidden = !tok; };
+$('loginBtn').onclick = async () => { try { await login(''); say(''); view(); } catch (e) { say(e.message); } };
+$('out').onclick = () => { logout(); $('result').hidden = true; $('code').textContent = ''; view(); };
+$('minus').onclick = () => $('cups').value = Math.max(1, +$('cups').value - 1);
+$('plus').onclick = () => $('cups').value = Math.min(10, +$('cups').value + 1);
+$('gen').onclick = async () => {
+  try { const c = await api('/api/codes', { method: 'POST', body: JSON.stringify({ cups: +$('cups').value }) });
+    const qr = qrcode(0, 'M'); qr.addData('STAMP:' + c.id); qr.make();
+    $('result').innerHTML = qr.createSvgTag(6, 4); $('result').hidden = false;
+    $('code').textContent = `${c.cups} cup(s) = ${c.cups} stamp(s). Code: ${c.id}`; say('QR ready. Valid for 15 minutes, one scan only.', true);
+  } catch (e) { say(e.message); view(); }
+};
+view();
+</script></main></body></html>

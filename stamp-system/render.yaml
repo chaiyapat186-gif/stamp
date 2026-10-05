@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: stamp-card
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: SECRET
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false

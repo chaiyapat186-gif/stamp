@@ -1,0 +1,49 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/admin/style.css"></head><body><main style="padding-top:32px">
+<h1>Admin</h1><div id="msg" class="msg" hidden></div>
+<form id="login" onsubmit="return false"><p>Admin log in.</p>
+  <p><input id="u" placeholder="Username" autocomplete="username" style="width:100%"></p>
+  <p><input id="p" type="password" placeholder="Password" autocomplete="current-password" style="width:100%"></p>
+  <button id="loginBtn" style="width:100%">Log in</button></form>
+<div id="app" hidden>
+  <div class="tabs"><button id="tLog">QR log</button><button class="ghost" id="tStaff">Staff accounts</button><button class="ghost" id="out">Log out</button></div>
+  <section id="log"><table><thead><tr><th>Time</th><th>Cups</th><th>Made by</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></section>
+  <section id="staff" hidden>
+    <table><thead><tr><th>Username</th><th>Role</th><th></th></tr></thead><tbody id="users"></tbody></table>
+    <h2>Add staff</h2>
+    <p><input id="nu" placeholder="New username (a-z, 0-9, _)" style="width:100%"></p>
+    <p><input id="np" type="password" placeholder="Password (6+ characters)" style="width:100%"></p>
+    <button id="add" style="width:100%">Create staff account</button>
+  </section>
+</div>
+<script src="/admin/config.js"></script><script src="/admin/api.js"></script>
+<script>
+if (role !== 'admin') logout();
+const view = () => { $('login').hidden = !!tok; $('app').hidden = !tok; };
+async function showLog() {
+  $('log').hidden = false; $('staff').hidden = true;
+  try { const rows = await api('/api/logs');
+    $('rows').innerHTML = rows.map(c => `<tr><td>${new Date(c.createdAt).toLocaleString()}</td><td>${c.cups}</td><td>${esc(c.createdBy)}</td><td>${c.usedBy ? 'Used ' + new Date(c.usedAt).toLocaleTimeString() : Date.now() > c.expiresAt ? 'Expired' : 'Waiting'}</td></tr>`).join('') || '<tr><td colspan="4">No QR codes yet.</td></tr>';
+  } catch (e) { say(e.message); }
+}
+async function showStaff() {
+  $('log').hidden = true; $('staff').hidden = false;
+  try { const us = await api('/api/users');
+    $('users').innerHTML = us.map(u => `<tr><td>${esc(u.username)}</td><td>${u.role}</td><td>${u.role === 'staff' ? `<button class="ghost" data-u="${esc(u.username)}">Remove</button>` : ''}</td></tr>`).join('');
+  } catch (e) { say(e.message); }
+}
+$('loginBtn').onclick = async () => { try { await login('admin'); say(''); view(); showLog(); } catch (e) { say(e.message); } };
+$('out').onclick = () => { logout(); view(); };
+$('tLog').onclick = showLog; $('tStaff').onclick = showStaff;
+$('add').onclick = async () => {
+  try { await api('/api/users', { method: 'POST', body: JSON.stringify({ username: $('nu').value, password: $('np').value }) });
+    say('Staff account created.', true); $('nu').value = $('np').value = ''; showStaff();
+  } catch (e) { say(e.message); }
+};
+$('users').onclick = async e => {
+  const u = e.target.dataset.u; if (!u || !confirm('Remove ' + u + '?')) return;
+  try { await api('/api/users/' + encodeURIComponent(u), { method: 'DELETE' }); say('Removed ' + u, true); showStaff(); } catch (e2) { say(e2.message); }
+};
+view(); if (tok) showLog();
+</script></main></body></html>
